@@ -6,13 +6,18 @@
 Filesystem related commands
 """
 
+from __future__ import division, absolute_import
+
 import getopt
 import copy
 from os import path
-from cowrie.core.honeypot import HoneyPotCommand
-from cowrie.core.fs import *
+
+from cowrie.shell.honeypot import HoneyPotCommand
+from cowrie.shell.fs import *
+from cowrie.core.config import CONFIG
 
 commands = {}
+
 
 class command_cat(HoneyPotCommand):
     """
@@ -26,12 +31,18 @@ class command_cat(HoneyPotCommand):
         else:
             for arg in self.args:
                 pname = self.fs.resolve_path(arg, self.protocol.cwd)
+
                 if self.fs.isdir(pname):
                     self.errorWrite('cat: {}: Is a directory\n'.format(arg))
                     continue
+
                 try:
-                    self.write(self.fs.file_contents(pname))
-                except:
+                    contents = self.fs.file_contents(pname)
+                    if contents:
+                        self.write(contents)
+                    else:
+                        raise FileNotFound
+                except FileNotFound:
                     self.errorWrite('cat: {}: No such file or directory\n'.format(arg))
         self.exit()
 
@@ -41,6 +52,8 @@ class command_cat(HoneyPotCommand):
                 realm='cat',
                 input=line,
                 format='INPUT (%(realm)s): %(input)s')
+
+        self.write(line)
 
 
     def handle_CTRL_D(self):
@@ -124,9 +137,8 @@ class command_grep(HoneyPotCommand):
 
 
 commands['/bin/grep'] = command_grep
-commands['/usr/bin/grep'] = command_grep
-commands['/usr/bin/egrep'] = command_grep
-commands['/usr/bin/fgrep'] = command_grep
+commands['/bin/egrep'] = command_grep
+commands['/bin/fgrep'] = command_grep
 
 
 class command_tail(HoneyPotCommand):
@@ -135,6 +147,7 @@ class command_tail(HoneyPotCommand):
     """
 
     def tail_get_contents(self, filename):
+
         try:
             contents = self.fs.file_contents(filename)
             self.tail_application(contents)
@@ -149,8 +162,9 @@ class command_tail(HoneyPotCommand):
             self.n = lines - 1
         i = 0
         for j in range((lines - self.n - 1), lines):
+            self.write(contentsplit[j])
             if i < self.n:
-                self.write(contentsplit[j] + '\n')
+                self.write('\n')
             i += 1
 
 
@@ -204,7 +218,7 @@ class command_head(HoneyPotCommand):
 
     def head_application(self, contents):
         i = 0
-        contentsplit = str(contents).split("\n")
+        contentsplit = contents.split("\n")
         for line in contentsplit:
             if i < self.n:
                 self.write(line + '\n')
@@ -222,7 +236,7 @@ class command_head(HoneyPotCommand):
     def start(self):
         self.n = 10
         if not self.args or self.args[0] == '>':
-            pass
+            return
         else:
             try:
                 optlist, args = getopt.getopt(self.args, 'n:')

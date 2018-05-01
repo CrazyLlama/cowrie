@@ -26,19 +26,22 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
+from __future__ import division, absolute_import
+
 from twisted.python import log
 
 import cowrie.core.output
 import cowrie.core.cef
+from cowrie.core.config import CONFIG
 
 class Output(cowrie.core.output.Output):
 
-    def __init__(self, cfg):
+    def __init__(self):
         """
         """
-        cowrie.core.output.Output.__init__(self, cfg)
-        self.format = cfg.get('output_textlog', 'format')
-        self.outfile = file(cfg.get('output_textlog', 'logfile'), 'a')
+        self.format = CONFIG.get('output_textlog', 'format')
+        self.outfile = open(CONFIG.get('output_textlog', 'logfile'), 'a')
+        cowrie.core.output.Output.__init__(self)
 
 
     def start(self):

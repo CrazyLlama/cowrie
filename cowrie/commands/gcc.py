@@ -1,13 +1,18 @@
 # Copyright (c) 2013 Bas Stottelaar <basstottelaar [AT] gmail [DOT] com>
 
+from __future__ import division, absolute_import
+
 import time
 import re
 import getopt
 import random
+import os
 
 from twisted.internet import reactor
 
-from cowrie.core.honeypot import HoneyPotCommand
+from cowrie.shell.honeypot import HoneyPotCommand
+
+from cowrie.core.config import CONFIG
 
 commands = {}
 
@@ -164,10 +169,12 @@ gcc version %s (Debian %s-5)""" % (version, version_short, version_short, versio
     def generate_file(self, outfile):
         data = ""
         # TODO: make sure it is written to temp file, not downloads
-        safeoutfile = '%s/%s_%s' % \
-            (self.protocol.cfg.get('honeypot', 'download_path'),
-            time.strftime('%Y%m%d%H%M%S'),
-            re.sub('[^A-Za-z0-9]', '_', outfile))
+        tmp_fname = '%s_%s_%s_%s' % \
+                    (time.strftime('%Y%m%d%H%M%S'),
+                     self.protocol.getProtoTransport().transportId,
+                     self.protocol.terminal.transport.session.id,
+                     re.sub('[^A-Za-z0-9]', '_', outfile))
+        safeoutfile = os.path.join(CONFIG.get('honeypot', 'download_path'), tmp_fname)
 
         # Data contains random garbage from an actual file, so when
         # catting the file, you'll see some 'real' compiled data
@@ -186,6 +193,7 @@ gcc version %s (Debian %s-5)""" % (version, version_short, version_short, versio
         # Create file for the protocol
         self.fs.mkfile(outfile, 0, 0, len(data), 33188)
         self.fs.update_realfile(self.fs.getfile(outfile), safeoutfile)
+        self.fs.chown(outfile, self.protocol.user.uid, self.protocol.user.gid)
 
         # Segfault command
         class segfault_command(HoneyPotCommand):

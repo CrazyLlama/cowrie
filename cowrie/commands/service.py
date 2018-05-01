@@ -5,11 +5,13 @@
 This module contains the service commnad
 """
 
+from __future__ import division, absolute_import
+
 import getopt
 
 from twisted.python import log
 
-from cowrie.core.honeypot import HoneyPotCommand
+from cowrie.shell.honeypot import HoneyPotCommand
 
 commands = {}
 
@@ -101,7 +103,7 @@ class command_service(HoneyPotCommand):
             self.help()
             return
 
-        if not opts and not args: 
+        if not opts and not args:
             self.help()
             return
 

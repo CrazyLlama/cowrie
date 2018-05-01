@@ -1,10 +1,17 @@
-from twisted.words.xish import domish
-from twisted.python import log
-from wokkel.xmppim import AvailablePresence
-from twisted.words.protocols.jabber.jid import JID
-from wokkel import muc
+
+from __future__ import division, absolute_import
+
 import uuid
 import json
+
+from twisted.words.xish import domish
+from twisted.python import log
+from twisted.words.protocols.jabber.jid import JID
+
+from wokkel.xmppim import AvailablePresence
+from wokkel import muc
+
+from cowrie.core.config import CONFIG
 
 class XMPPLoggerProtocol(muc.MUCClient):
 
@@ -52,18 +59,18 @@ from cowrie.core import dblog
 from twisted.words.xish import domish
 
 class DBLogger(dblog.DBLogger):
-    def start(self, cfg):
+    def start(self):
         from random import choice
         import string
 
-        server      = cfg.get('database_xmpp', 'server')
-        user        = cfg.get('database_xmpp', 'user')
-        password    = cfg.get('database_xmpp', 'password')
-        muc         = cfg.get('database_xmpp', 'muc')
+        server      = CONFIG.get('database_xmpp', 'server')
+        user        = CONFIG.get('database_xmpp', 'user')
+        password    = CONFIG.get('database_xmpp', 'password')
+        muc         = CONFIG.get('database_xmpp', 'muc')
         channels = {}
         for i in ('createsession', 'connectionlost', 'loginfailed',
                   'loginsucceeded', 'command', 'clientversion'):
-            x = cfg.get('database_xmpp', 'signal_' + i)
+            x = CONFIG.get('database_xmpp', 'signal_' + i)
             if not x in channels:
                 channels[x] = []
             channels[x].append(i)
@@ -77,12 +84,12 @@ class DBLogger(dblog.DBLogger):
     def run(self, application, jidstr, password, muc, channels, anon=True):
 
         self.xmppclient = XMPPClient(JID(jidstr), password)
-        if self.cfg.has_option('database_xmpp', 'debug') and \
-                self.cfg.getboolean('database_xmpp', 'debug') == True:
+        if CONFIG.has_option('database_xmpp', 'debug') and \
+                CONFIG.getboolean('database_xmpp', 'debug') == True:
             self.xmppclient.logTraffic = True # DEBUG HERE
         (user, host, resource) = jid.parse(jidstr)
         self.muc = XMPPLoggerProtocol(
-            muc, channels.keys(), user + '-' + resource)
+            muc, list(channels.keys()), user + '-' + resource)
         self.muc.setHandlerParent(self.xmppclient)
         self.xmppclient.setServiceParent(application)
         self.signals = {}

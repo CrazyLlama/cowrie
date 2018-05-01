@@ -2,7 +2,9 @@
 # Copyright (c) 2014 Peter Reuterås <peter@reuteras.com>
 # See the COPYRIGHT file for more information
 
-from cowrie.core.honeypot import HoneyPotCommand
+from __future__ import division, absolute_import
+
+from cowrie.shell.honeypot import HoneyPotCommand
 
 commands = {}
 

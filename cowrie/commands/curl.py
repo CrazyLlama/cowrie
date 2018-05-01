@@ -1,6 +1,8 @@
 # Copyright (c) 2009 Upi Tamminen <desaster@gmail.com>
 # See the COPYRIGHT file for more information
 
+from __future__ import division, absolute_import
+
 import stat
 import time
 import random
@@ -8,19 +10,16 @@ import re
 import os
 import getopt
 import hashlib
-try:
-    from urllib.parse import urlparse
-except ImportError:
-    from urlparse import urlparse
-
 from OpenSSL import SSL
 
 from twisted.web import client
 from twisted.internet import reactor, ssl
-from twisted.python import log
+from twisted.python import log, compat
 
-from cowrie.core.honeypot import HoneyPotCommand
-from cowrie.core.fs import *
+from cowrie.shell.honeypot import HoneyPotCommand
+from cowrie.shell.fs import *
+
+from cowrie.core.config import CONFIG
 
 """
 """
@@ -60,7 +59,7 @@ class command_curl(HoneyPotCommand):
 
         if '://' not in url:
             url = 'http://'+ url
-        urldata = urlparse(url)
+        urldata = compat.urllib_parse.urlparse(url)
 
         outfile = None
         for opt in optlist:
@@ -84,18 +83,22 @@ class command_curl(HoneyPotCommand):
                 self.exit()
                 return
 
+        url=url.encode('ascii')
         self.url = url
         self.limit_size = 0
-        cfg = self.protocol.cfg
-        if cfg.has_option('honeypot', 'download_limit_size'):
-            self.limit_size = int(cfg.get('honeypot', 'download_limit_size'))
+        if CONFIG.has_option('honeypot', 'download_limit_size'):
+            self.limit_size = CONFIG.getint('honeypot', 'download_limit_size')
 
-        self.download_path = cfg.get('honeypot', 'download_path')
+        self.download_path = CONFIG.get('honeypot', 'download_path')
 
-        self.safeoutfile = '%s/%s_%s' % \
-            (self.download_path,
-            time.strftime('%Y%m%d%H%M%S'),
-            re.sub('[^A-Za-z0-9]', '_', url))
+        if not hasattr(self, 'safeoutfile'):
+            tmp_fname = '%s_%s_%s_%s' % \
+                        (time.strftime('%Y%m%d%H%M%S'),
+                         self.protocol.getProtoTransport().transportId,
+                         self.protocol.terminal.transport.session.id,
+                         re.sub('[^A-Za-z0-9]', '_', url.decode('ascii')))
+            self.safeoutfile = os.path.join(self.download_path, tmp_fname)
+
         self.deferred = self.download(url, outfile, self.safeoutfile)
         if self.deferred:
             self.deferred.addCallback(self.success, outfile)
@@ -267,23 +270,23 @@ Options: (H) means HTTP/HTTPS only, (F) means FTP only
         """
         """
         try:
-            parsed = urlparse(url)
+            parsed = compat.urllib_parse.urlparse(url)
             scheme = parsed.scheme
             host = parsed.hostname
             port = parsed.port or (443 if scheme == 'https' else 80)
             path = parsed.path or '/'
-            if scheme != 'http' and scheme != 'https':
+            if scheme != b'http' and scheme != b'https':
                 raise NotImplementedError
         except:
-            self.write('%s: Unsupported scheme.\n' % (url,))
+            self.errorWrite('curl: (1) Protocol "{}" not supported or disabled in libcurl\n'.format(scheme))
             self.exit()
             return None
 
         factory = HTTPProgressDownloader(
             self, fakeoutfile, url, outputfile, *args, **kwargs)
         out_addr = None
-        if self.protocol.cfg.has_option('honeypot', 'out_addr'):
-            out_addr = (self.protocol.cfg.get('honeypot', 'out_addr'), 0)
+        if CONFIG.has_option('honeypot', 'out_addr'):
+            out_addr = (CONFIG.get('honeypot', 'out_addr'), 0)
 
         if scheme == 'https':
             contextFactory = ssl.ClientContextFactory()
@@ -310,8 +313,9 @@ Options: (H) means HTTP/HTTPS only, (F) means FTP only
             log.msg("there's no file " + self.safeoutfile)
             self.exit()
 
-        shasum = hashlib.sha256(open(self.safeoutfile, 'rb').read()).hexdigest()
-        hashPath = '%s/%s' % (self.download_path, shasum)
+        with open(self.safeoutfile, 'rb') as f:
+            shasum = hashlib.sha256(f.read()).hexdigest()
+            hashPath = os.path.join(self.download_path, shasum)
 
         # If we have content already, delete temp file
         if not os.path.exists(hashPath):
@@ -326,22 +330,16 @@ Options: (H) means HTTP/HTTPS only, (F) means FTP only
                                   outfile=hashPath,
                                   shasum=shasum)
 
-        log.msg(eventid='cowrie.session.file_download',
-                format='Downloaded URL (%(url)s) with SHA-256 %(shasum)s to %(outfile)s',
-                url=self.url,
-                outfile=hashPath,
-                shasum=shasum)
-
         # Link friendly name to hash
-        os.symlink(shasum, self.safeoutfile)
+        # os.symlink(shasum, self.safeoutfile)
 
         # FIXME: is this necessary?
-        self.safeoutfile = hashPath
+        # self.safeoutfile = hashPath
 
         # Update the honeyfs to point to downloaded file
-        if outfile is not None:
-            f = self.fs.getfile(outfile)
-            f[A_REALFILE] = hashPath
+        self.fs.update_realfile(self.fs.getfile(outfile), hashPath)
+        self.fs.chown(outfile, self.protocol.user.uid, self.protocol.user.gid)
+
         self.exit()
 
 
@@ -354,6 +352,9 @@ Options: (H) means HTTP/HTTPS only, (F) means FTP only
         # Real curl also adds this:
         # self.write('%s ERROR 404: Not Found.\n' % \
         #    time.strftime('%Y-%m-%d %T'))
+        self.protocol.logDispatch(eventid='cowrie.session.file_download.failed',
+                                  format='Attempt to download file(s) from URL (%(url)s) failed',
+                                  url=self.url)
         self.exit()
 commands['/usr/bin/curl'] = command_curl
 
@@ -363,15 +364,18 @@ class HTTPProgressDownloader(client.HTTPDownloader):
     """
     From http://code.activestate.com/recipes/525493/
     """
+    totallength = 0
+    currentlength = 0
+    lastupdate = 0
+
     def __init__(self, curl, fakeoutfile, url, outfile, headers=None):
         """
         """
         client.HTTPDownloader.__init__(self, url, outfile, headers=headers,
-            agent='curl/7.38.0')
+            agent=b'curl/7.38.0')
         self.status = None
         self.curl = curl
         self.fakeoutfile = fakeoutfile
-        self.lastupdate = 0
         self.started = time.time()
         self.proglen = 0
         self.nomore = False

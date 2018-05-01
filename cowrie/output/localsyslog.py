@@ -26,22 +26,27 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
+from __future__ import division, absolute_import
+
 import syslog
 import twisted.python.syslog
 
 import cowrie.core.output
 import cowrie.core.cef
 
+from cowrie.core.config import CONFIG
+
+
 class Output(cowrie.core.output.Output):
 
-    def __init__(self, cfg):
+    def __init__(self):
         """
         """
-        cowrie.core.output.Output.__init__(self, cfg)
-        facilityString = cfg.get('output_localsyslog', 'facility')
-        self.format = cfg.get('output_localsyslog', 'format')
+        facilityString = CONFIG.get('output_localsyslog', 'facility')
+        self.format = CONFIG.get('output_localsyslog', 'format')
         self.facility = vars(syslog)['LOG_' + facilityString]
         self.syslog = twisted.python.syslog.SyslogObserver(prefix='cowrie', facility=self.facility)
+        cowrie.core.output.Output.__init__(self)
 
 
     def start(self):
@@ -60,7 +65,11 @@ class Output(cowrie.core.output.Output):
         """
         """
         if self.format == 'cef':
-            self.syslog.emit(cowrie.core.cef.formatCef(logentry))
+            self.syslog.emit({
+                'message': cowrie.core.cef.formatCef(logentry),
+                'isError': False,
+                'system': 'cowrie'
+            })
         else:
             # message appears with additional spaces if message key is defined
             logentry['message'] = [ logentry['message'] ]

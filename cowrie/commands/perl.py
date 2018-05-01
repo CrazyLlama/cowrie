@@ -5,9 +5,13 @@
 This module contains the perl command
 """
 
-from twisted.python import log
+from __future__ import division, absolute_import
+
 import getopt
-from cowrie.core.honeypot import HoneyPotCommand
+
+from twisted.python import log
+
+from cowrie.shell.honeypot import HoneyPotCommand
 
 commands = {}
 

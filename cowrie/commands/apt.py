@@ -1,13 +1,15 @@
 # Copyright (c) 2009 Upi Tamminen <desaster@gmail.com>
 # See the COPYRIGHT file for more information
 
+from __future__ import division, absolute_import
+
 import random
 import re
 
 from twisted.internet import reactor, defer
 from twisted.internet.defer import inlineCallbacks
 
-from cowrie.core.honeypot import HoneyPotCommand
+from cowrie.shell.honeypot import HoneyPotCommand
 
 commands = {}
 
@@ -16,7 +18,7 @@ class command_faked_package_class_factory(object):
     def getCommand(name):
         class command_faked_installation(HoneyPotCommand):
             def call(self):
-                self.write("%s: Segmentation fault\n" % name)
+                self.write(b"%s: Segmentation fault\n" % name)
         return command_faked_installation
 
 class command_aptget(HoneyPotCommand):
@@ -141,7 +143,7 @@ pages for more information and options.
                 (i, p, packages[p]['version'], packages[p]['size']))
             i += 1
             yield self.sleep(1, 2)
-        self.write('Fetched %s.2kB in 1s (4493B/s)''\n' % (totalsize))
+        self.write('Fetched %s.2kB in 1s (4493B/s)\n' % (totalsize))
         self.write('Reading package fields... Done\n')
         yield self.sleep(1, 2)
         self.write('Reading package status... Done\n')

@@ -3,10 +3,12 @@
 # Copyright (c) 2016 Dave Germiquet
 # See LICENSE for details.
 
+from __future__ import division, absolute_import
+
 import pickle
 import copy
 
-from cowrie.core import fs
+from cowrie.shell import fs
 
 
 class FakeServer:
@@ -17,7 +19,7 @@ class FakeServer:
     """
     def __init__(self, cfg):
         self.cfg = cfg
-
+        self.arch = 'linux-x64-lsb'
         self.hostname = "unitTest"
 
         self.pckl = pickle.load(

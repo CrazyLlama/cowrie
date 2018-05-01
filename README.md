@@ -1,6 +1,14 @@
-# Cowrie
 
-Cowrie is a medium interaction SSH and Telnet honeypot designed to log brute force attacks and the shell interaction performed by the attacker.
+# Welcome to the Cowrie GitHub repository
+
+This is the official repository for the Cowrie SSH and Telnet
+Honeypot effort.
+
+# What is Cowrie
+
+Cowrie is a medium interaction SSH and Telnet honeypot designed to
+log brute force attacks and the shell interaction performed by the
+attacker.
 
 [Cowrie](http://github.com/micheloosterhof/cowrie/) is developed by Michel Oosterhof.
 
@@ -22,19 +30,20 @@ Additional functionality over standard kippo:
 * Logging in JSON format for easy processing in log management solutions
 * Many, many additional commands
 
+## Docker
+
+Docker versions are available.
+* Get the Dockerfile directly at https://github.com/cowrie/docker-cowrie
+* Run from the Docker regstry with: ```docker pull cowrie/cowrie```
+
 ## Requirements
 
 Software required:
 
 * Python 2.7+, (Python 3 not yet supported due to Twisted dependencies)
-* Zope Interface 3.6.0+
-* Twisted 12.0+
-* python-crypto
-* python-cryptography
-* python-pyasn1
-* python-gmpy2 (recommended)
-* python-mysqldb (for MySQL output)
-* python-OpenSSL
+* python-virtualenv
+
+For Python dependencies, see requirements.txt
 
 ## Files of interest:
 
@@ -58,9 +67,21 @@ Maybe. See [FAQ](https://github.com/micheloosterhof/cowrie/wiki/Frequently-Asked
 
 Please visit https://github.com/micheloosterhof/cowrie/issues
 
+## I'd like to install with Docker
+
+Run:
+```docker pull cowrie/cowrie```
+to download images from hub.docker.com
+
+Or look at https://github.com/cowrie/docker-cowrie for the Dockerfile
+
 ## Contributors
 
 Many people have contributed to Cowrie over the years. Special thanks to:
 
 * Upi Tamminen (desaster) for all his work developing Kippo on which Cowrie was based
+* Dave Germiquet (davegermiquet) for TFTP support, unit tests, new process handling
+* Olivier Bilodeau (obilodeau) for Telnet support
+* Ivan Korolev (fe7ch) for many improvements over the years.
+* And many many others.
 

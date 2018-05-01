@@ -1,6 +1,9 @@
 
 """
 """
+
+from __future__ import division, absolute_import
+
 import sqlite3
 
 from twisted.internet import defer
@@ -9,13 +12,15 @@ from twisted.python import log
 
 import cowrie.core.output
 
+from cowrie.core.config import CONFIG
+
+
 class Output(cowrie.core.output.Output):
     """
     """
 
-    def __init__(self, cfg):
-        self.cfg = cfg
-        cowrie.core.output.Output.__init__(self, cfg)
+    def __init__(self):
+        cowrie.core.output.Output.__init__(self)
 
 
     def start(self):
@@ -24,7 +29,7 @@ class Output(cowrie.core.output.Output):
         Need to be started with check_same_thread=False. See
         https://twistedmatrix.com/trac/ticket/3629.
         """
-        sqliteFilename = self.cfg.get('output_sqlite', 'db_file')
+        sqliteFilename = CONFIG.get('output_sqlite', 'db_file')
         try:
             self.db = adbapi.ConnectionPool('sqlite3',
                     database = sqliteFilename, check_same_thread=False)
@@ -93,7 +98,7 @@ class Output(cowrie.core.output.Output):
                 (entry["session"], 0, entry['username'], entry['password'],
                 entry["timestamp"]))
 
-        elif entry["eventid"] == 'cowrie.command.success':
+        elif entry["eventid"] == 'cowrie.command.input':
             self.simpleQuery('INSERT INTO `input`' + \
                 ' (`session`, `timestamp`, `success`, `input`)' + \
                 ' VALUES (?, ?, ?, ?)',
@@ -106,6 +111,11 @@ class Output(cowrie.core.output.Output):
                 ' VALUES (?, ?, ?, ?)',
                 (entry["session"], entry["timestamp"],
                 0, entry["input"]))
+        
+        elif entry["eventid"] == 'cowrie.session.params':
+            self.simpleQuery('INSERT INTO `params` (`session`, `arch`)' + \
+                ' VALUES (?, ?)',
+                (entry["session"], entry["arch"]))
 
         elif entry["eventid"] == 'cowrie.session.file_download':
             self.simpleQuery('INSERT INTO `downloads`' + \
@@ -113,6 +123,13 @@ class Output(cowrie.core.output.Output):
                 ' VALUES (?, ?, ?, ?, ?)',
                 (entry["session"], entry["timestamp"],
                 entry['url'], entry['outfile'], entry['shasum']))
+
+        elif entry["eventid"] == 'cowrie.session.file_download.failed':
+            self.simpleQuery('INSERT INTO `downloads`' + \
+                ' (`session`, `timestamp`, `url`, `outfile`, `shasum`)' + \
+                ' VALUES (?, ?, ?, ?, ?)',
+                (entry["session"], entry["timestamp"],
+                entry['url'], 'NULL', 'NULL'))
 
         elif entry["eventid"] == 'cowrie.session.file_download':
             self.simpleQuery('INSERT INTO `input`' + \

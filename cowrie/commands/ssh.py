@@ -4,6 +4,8 @@
 """
 """
 
+from __future__ import division, absolute_import
+
 import time
 import re
 import hashlib
@@ -13,7 +15,7 @@ import socket
 from twisted.python import log
 from twisted.internet import reactor
 
-from cowrie.core.honeypot import HoneyPotCommand
+from cowrie.shell.honeypot import HoneyPotCommand
 
 commands = {}
 

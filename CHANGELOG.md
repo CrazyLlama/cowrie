@@ -1,4 +1,14 @@
-
+* 2018-04-27 Output plugins now require the mandatory config entry 'enabled'.
+* 2018-02-06 cowrie.log now uses same rotation mechanism as cowrie.json. One file per day, rather than the default 1MB per file.
+* 2017-12-13 Default umask for logs is now 0007. This means group members can access.
+* 2017-10-24 Can store uploaded and downloaded artifacts to S3
+* 2017-09-23 First proxy implementation for exec commands only
+* 2017-07-03 Cuckoo v2 integration
+* 2017-05-16 now combines config files: cowrie.cfg.dist and cowrie.cfg in this order
+* 2017-05-09 start.sh and stop.sh have been replace by bin/cowrie start|stop
+* 2017-04-27 New syntax "listen_endpoints" for configuring listening IP addresses/portnumbers
+* 2017-03-15 SSH Forwarding/SFTP/keys/version config have been moved to [ssh]. Change your config file!
+* 2017-02-12 Implemented toggle for SSH forwarding
 * 2016-08-22 Merged Telnet support by @obilodeau!
 * 2016-08-20 Update your libraries! 'configparser' now required: "pip install configparser"
 * 2016-05-06 Load pickle once at startup for improved speed

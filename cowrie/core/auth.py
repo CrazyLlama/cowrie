@@ -5,20 +5,24 @@
 This module contains ...
 """
 
+from __future__ import division, absolute_import
+
 import json
 from os import path
 from random import randint
 
 from twisted.python import log
 
+from cowrie.core.config import CONFIG
+
 class UserDB(object):
     """
     By Walter de Jong <walter@sara.nl>
     """
 
-    def __init__(self, cfg):
+    def __init__(self):
         self.userdb = []
-        self.userdb_file = '%s/userdb.txt' % cfg.get('honeypot', 'data_path')
+        self.userdb_file = '%s/userdb.txt' % CONFIG.get('honeypot', 'data_path')
         self.load()
 
 
@@ -27,7 +31,7 @@ class UserDB(object):
         load the user db
         """
 
-        with open(self.userdb_file, 'r') as f:
+        with open(self.userdb_file, 'rb') as f:
             while True:
                 rawline = f.readline()
                 if not rawline:
@@ -37,10 +41,10 @@ class UserDB(object):
                 if not line:
                     continue
 
-                if line.startswith('#'):
+                if line.startswith(b'#'):
                     continue
 
-                (login, uid, passwd) = line.split(':', 2)
+                (login, uid, passwd) = line.split(b':', 2)
 
                 self.userdb.append((login, passwd))
 
@@ -60,14 +64,14 @@ class UserDB(object):
         """
         check entered username/password against database
         note that it allows multiple passwords for a single username
-        it also knows wildcard '*' for any password
+        it also knows wildcard '*' for any username or password
         prepend password with ! to explicitly deny it. Denials must come before wildcards
         """
         for (login, passwd) in self.userdb:
             # Explicitly fail on !password
-            if login == thelogin and passwd == '!' + thepasswd:
+            if login == thelogin and passwd == b'!' + thepasswd:
                 return False
-            if login == thelogin and passwd in (thepasswd, '*'):
+            if login in (thelogin, b'*') and passwd in (thepasswd, b'*'):
                 return True
         return False
 
@@ -97,13 +101,13 @@ class AuthRandom(object):
     Users will be authenticated after a random number of attempts.
     """
 
-    def __init__(self, cfg):
+    def __init__(self):
         # Default values
         self.mintry, self.maxtry, self.maxcache = 2, 5, 10
 
         # Are there auth_class parameters?
-        if cfg.has_option('honeypot', 'auth_class_parameters'):
-            parameters = cfg.get('honeypot', 'auth_class_parameters')
+        if CONFIG.has_option('honeypot', 'auth_class_parameters'):
+            parameters = CONFIG.get('honeypot', 'auth_class_parameters')
             parlist = parameters.split(',')
             if len(parlist) == 3:
                 self.mintry = int(parlist[0])
@@ -114,7 +118,7 @@ class AuthRandom(object):
             self.maxtry = self.mintry + 1
             log.msg('maxtry < mintry, adjusting maxtry to: %d' % (self.maxtry,))
         self.uservar = {}
-        self.uservar_file = '%s/uservar.json' % cfg.get('honeypot', 'data_path')
+        self.uservar_file = '%s/uservar.json' % CONFIG.get('honeypot', 'data_path')
         self.loadvars()
 
 

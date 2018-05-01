@@ -3,6 +3,8 @@ Send SSH logins to SANS DShield.
 See https://isc.sans.edu/ssh.html
 """
 
+from __future__ import division, absolute_import
+
 import dateutil.parser
 import time
 import base64
@@ -15,21 +17,22 @@ from twisted.python import log
 from twisted.internet import threads, reactor
 
 import cowrie.core.output
+from cowrie.core.config import CONFIG
 
 
 class Output(cowrie.core.output.Output):
     """
     """
-    def __init__(self, cfg):
-        self.auth_key = cfg.get('output_dshield', 'auth_key')
-        self.userid = cfg.get('output_dshield', 'userid')
-        self.batch_size = int(cfg.get('output_dshield', 'batch_size'))
+    def __init__(self):
+        self.auth_key = CONFIG.get('output_dshield', 'auth_key')
+        self.userid = CONFIG.get('output_dshield', 'userid')
+        self.batch_size = CONFIG.getint('output_dshield', 'batch_size')
         try:
-            self.debug = cfg.getboolean('output_dshield', 'debug')
+            self.debug = CONFIG.getboolean('output_dshield', 'debug')
         except:
             self.debug = False
 
-        cowrie.core.output.Output.__init__(self, cfg)
+        cowrie.core.output.Output.__init__(self)
 
 
     def start(self):
@@ -86,8 +89,7 @@ class Output(cowrie.core.output.Output):
             base64.b64decode(self.auth_key), hashlib.sha256).digest())
         auth_header = 'credentials={0} nonce={1} userid={2}'.format(digest, _nonceb64, self.userid)
         headers = {'X-ISC-Authorization': auth_header,
-                  'Content-Type':'text/plain',
-                  'Content-Length': len(log_output)}
+                  'Content-Type':'text/plain'}
         #log.msg(headers)
 
         if self.debug:

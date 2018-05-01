@@ -1,6 +1,8 @@
 # Copyright (c) 2009 Upi Tamminen <desaster@gmail.com>
 # See the COPYRIGHT file for more information
 
+from __future__ import division, absolute_import
+
 import re
 import random
 import hashlib
@@ -9,7 +11,7 @@ import getopt
 
 from twisted.internet import reactor
 
-from cowrie.core.honeypot import HoneyPotCommand
+from cowrie.shell.honeypot import HoneyPotCommand
 
 commands = {}
 
@@ -35,7 +37,7 @@ class command_ping(HoneyPotCommand):
         self.running = False
 
         try:
-            optlist, args = getopt.getopt(self.args, "c:")
+            optlist, args = getopt.gnu_getopt(self.args, "c:")
         except getopt.GetoptError as err:
             self.write('ping: %s\n' % (err,))
             self.exit()
@@ -52,9 +54,7 @@ class command_ping(HoneyPotCommand):
                     self.exit()
                     return
 
-        self.host = args[0].strip()
-
-        if not self.host:
+        if len(args)==0:
             for l in (
                     'Usage: ping [-LRUbdfnqrvVaA] [-c count] [-i interval] [-w deadline]',
                     '            [-p pattern] [-s packetsize] [-t ttl] [-I interface or address]',
@@ -64,6 +64,7 @@ class command_ping(HoneyPotCommand):
                 self.write(l+'\n')
             self.exit()
             return
+        self.host = args[0].strip()
 
         if re.match('^[0-9.]+$', self.host):
             if self.valid_ip(self.host):

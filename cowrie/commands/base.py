@@ -1,6 +1,8 @@
 # Copyright (c) 2009 Upi Tamminen <desaster@gmail.com>
 # See the COPYRIGHT file for more information
 
+from __future__ import division, absolute_import
+
 import time
 import datetime
 import functools
@@ -11,11 +13,12 @@ from twisted.python import failure, log
 
 from twisted.internet import error, reactor
 
-from cowrie.core.honeypot import HoneyPotCommand,StdOutStdErrEmulationProtocol
+from cowrie.shell.honeypot import HoneyPotCommand, HoneyPotShell, StdOutStdErrEmulationProtocol
 from cowrie.core.auth import UserDB
 from cowrie.core import utils
 
 commands = {}
+
 
 class command_whoami(HoneyPotCommand):
     """
@@ -34,7 +37,7 @@ class command_help(HoneyPotCommand):
     def call(self):
         """
         """
-        self.write("""GNU bash, version 4.2.37(1)-release (x86_64-pc-linux-gnu)
+        self.write(b"""GNU bash, version 4.2.37(1)-release (x86_64-pc-linux-gnu)
 These shell commands are defined internally.  Type `help' to see this list.
 Type `help name' to find out more about the function `name'.
 Use `info bash' to find out more about the shell in general.
@@ -129,7 +132,7 @@ class command_echo(HoneyPotCommand):
             optlist, args = getopt.getopt(self.args, "eEn")
             for opt in optlist:
                 if opt[0] == '-e':
-                    escape_fn = functools.partial(str.decode, encoding="string_escape")
+                    escape_fn = functools.partial(unicode.decode, encoding="string_escape")
                 elif opt[0] == '-E':
                     escape_fn = lambda s: s
                 elif opt[0] == '-n':
@@ -137,18 +140,63 @@ class command_echo(HoneyPotCommand):
         except:
             args = self.args
 
-        # FIXME: Wrap in exception, Python escape cannot handle single digit \x codes (e.g. \x1)
         try:
-            self.write(escape_fn(re.sub('(?<=\\\\)x([0-9a-fA-F]{1})(?=\\\\|\"|\'|\s|$)', 'x0\g<1>',
-                ' '.join(args))).strip('\"\''))
+            # replace r'\\x' with r'\x'
+            s = ' '.join(args).replace('\\\\x', '\\x')
+
+            # replace single character escape \x0 with \x00
+            s = re.sub('(?<=\\\\)x([0-9a-fA-F])(?=\\\\|\"|\'|\s|$)', 'x0\g<1>', s)
+
+            # strip single and double quotes
+            s = s.strip('\"\'')
+
+            # if the string ends with \c escape, strip it and set newline flag to False
+            if s.endswith('\\c'):
+                s = s[:-2]
+                newline = False
+
+            if newline is True:
+                s += '\n'
+
+            self.write(escape_fn(s))
+
         except ValueError as e:
             log.msg("echo command received Python incorrect hex escape")
 
-        if newline is True:
-            self.write('\n')
 
 commands['/bin/echo'] = command_echo
 
+
+class command_printf(HoneyPotCommand):
+    """
+    """
+
+    def call(self):
+        if not len(self.args):
+            self.write('printf: usage: printf [-v var] format [arguments]\n')
+        else:
+            if '-v' not in self.args:
+                if len(self.args) < 2:
+                    escape_fn = functools.partial(unicode.decode, encoding="string_escape")
+
+                    # replace r'\\x' with r'\x'
+                    s = ''.join(self.args[0]).replace('\\\\x', '\\x')
+
+                    # replace single character escape \x0 with \x00
+                    s = re.sub('(?<=\\\\)x([0-9a-fA-F])(?=\\\\|\"|\'|\s|$)', 'x0\g<1>', s)
+
+                    # strip single and double quotes
+                    s = s.strip('\"\'')
+
+                    # if the string ends with \c escape, strip it
+                    if s.endswith('\\c'):
+                        s = s[:-2]
+
+                    self.write(escape_fn(s))
+
+
+commands['printf'] = command_printf
+commands['/usr/bin/printf'] = command_printf
 
 
 class command_exit(HoneyPotCommand):
@@ -310,7 +358,7 @@ class command_passwd(HoneyPotCommand):
             self.exit()
             return
 
-        userdb = UserDB(self.protocol.cfg)
+        userdb = UserDB()
         userdb.adduser(self.protocol.user.username, self.passwd)
 
         self.write('passwd: password updated successfully\n')
@@ -484,24 +532,31 @@ class command_sh(HoneyPotCommand):
         """
         """
         if len(self.args) and self.args[0].strip() == '-c':
-            line = ' '.join(self.args)
-            cmd = self.args[1]
-            cmdclass = self.protocol.getCommand(cmd,
-                                                self.environ['PATH'].split(':'))
-            if cmdclass:
-                log.msg(eventid='cowrie.command.success',
-                        input=line,
-                        format='Command found: %(input)s')
-                command = StdOutStdErrEmulationProtocol(self.protocol,cmdclass,self.args[2:],self.input_data,None)
-                self.protocol.pp.insert_command(command)
-                # Place this here so it doesn't write out only if last statement
 
-                if self.input_data:
-                    self.write(self.input_data)
-            else:
-                log.msg(eventid='cowrie.command.failed',
-                        input=''.join(cmd), format='Command not found: %(input)s')
-                self.write('bash: %s: command not found\n' % (cmd))
+            line = ' '.join(self.args[1:])
+
+            # it might be sh -c 'echo "sometext"', so don't use line.strip('\'\"')
+            if (line[0] == '\'' and line[-1] == '\'') or (line[0] == '"' and line[-1] == '"'):
+                line = line[1:-1]
+
+            self.execute_commands(line)
+
+        elif self.input_data:
+            self.execute_commands(self.input_data)
+
+        # TODO: handle spawning multiple shells, support other sh flags
+
+    def execute_commands(self, cmds):
+
+        # self.input_data holds commands passed via PIPE
+        # create new HoneyPotShell for our a new 'sh' shell
+        self.protocol.cmdstack.append(HoneyPotShell(self.protocol, interactive=False))
+
+        # call lineReceived method that indicates that we have some commands to parse
+        self.protocol.cmdstack[-1].lineReceived(cmds)
+
+        # remove the shell
+        self.protocol.cmdstack.pop()
 
 
 commands['/bin/bash'] = command_sh
@@ -648,5 +703,6 @@ commands['/bin/su'] = command_nop
 commands['/bin/chown'] = command_nop
 commands['/bin/chgrp'] = command_nop
 commands['/usr/bin/chattr'] = command_nop
+commands[':'] = command_nop
 
 # vim: set sw=4 et:
